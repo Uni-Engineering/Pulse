@@ -146,7 +146,7 @@ class WorkerService {
 
       final statusCode = response?.statusCode;
 
-      if (_shouldHaltWorker(response?.statusCode)) {
+      if (_shouldHaltWorker(statusCode)) {
         _hasHalted = true;
         _cancelToken.cancel("events sync halted");
         Log.e('$tag: Irreversible error detected (status: $statusCode). Halting worker and cancelling further syncs.');
