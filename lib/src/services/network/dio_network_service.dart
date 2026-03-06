@@ -159,6 +159,7 @@ class _Interceptor extends dio.Interceptor {
   @override
   void onRequest(dio.RequestOptions options, dio.RequestInterceptorHandler handler) {
     final userAgent = '$appType PulseEventsSdk/${Constants.sdkVersion}($_osType; deviceId=${eventContext.deviceId})';
+    final sdkConfig = getIt<PulseEventsSdkConfig>();
 
     options.headers.addAll({
       'Content-Type': 'application/json',
@@ -173,6 +174,7 @@ class _Interceptor extends dio.Interceptor {
     if (eventContext.networkHeaders != null) {
       options.headers.addAll(eventContext.networkHeaders!);
     }
+    sdkConfig.onNetworkIntercept?.call(options, handler);
 
     super.onRequest(options, handler);
   }
