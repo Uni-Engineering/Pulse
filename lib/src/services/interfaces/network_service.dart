@@ -15,6 +15,10 @@
 import 'package:dio/dio.dart';
 
 abstract class INetworkService<T> {
+  /// Whether the service currently holds an auth token to publish with.
+  /// Sync attempts made without one can never succeed.
+  bool get hasAuthToken;
+
   Future<T> get(String endpoint);
   Future<T> post(
     String endpoint,

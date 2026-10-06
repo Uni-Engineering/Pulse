@@ -86,7 +86,21 @@ class WorkerService {
     }
 
     if (_hasHalted) {
-      return EventSyncResult.halted();
+      final alreadyAccountedEventIds = <String>{
+        for (final result in results) ...[
+          ...result.succeeded.map((event) => event.eventId),
+          ...result.failed.map((event) => event.eventId),
+        ],
+      };
+      final unaccountedEvents = eventsToSync.where((event) => !alreadyAccountedEventIds.contains(event.eventId));
+      return EventSyncResult(
+        succeeded: results.expand((result) => result.succeeded).toList(),
+        failed: [
+          ...results.expand((result) => result.failed),
+          ...unaccountedEvents,
+        ],
+        state: EventSyncState.halted,
+      );
     }
 
     final eventSyncResult = EventSyncResult.merge(results);
@@ -108,7 +122,7 @@ class WorkerService {
     bool retry = false,
     int retryCount = 1,
   }) async {
-    if (_hasHalted) return EventSyncResult.halted();
+    if (_hasHalted) return EventSyncResult.halted(batch.toList());
     final config = getIt<PulseEventsSdkConfig>();
 
     // validate batch size
@@ -132,13 +146,23 @@ class WorkerService {
 
       final statusCode = response?.statusCode;
 
-      if (_shouldHaltWorker(statusCode)) {
+      if (_shouldHaltWorker(response?.statusCode)) {
         _hasHalted = true;
         _cancelToken.cancel("events sync halted");
         Log.e('$tag: Irreversible error detected (status: $statusCode). Halting worker and cancelling further syncs.');
+        PulseEventsSdk.reportWarning(
+          'pulse_sync_halted_401_403',
+          '$tag: sync halted due to irreversible auth response',
+          {
+            'statusCode': statusCode,
+            'eventPublishEndpoint': eventPublishEndpoint,
+            'batchSize': batch.length,
+            'logId': logId,
+          },
+        );
 
         onIrreversibleError?.call(response?.statusCode);
-        return EventSyncResult.halted();
+        return EventSyncResult.halted(batch.toList());
       }
 
       // if syncing was successful, mark the events as `synced` otherwise mark as `failed`
@@ -153,7 +177,7 @@ class WorkerService {
     } on DioException catch (e) {
       if (e.type == DioExceptionType.cancel) {
         Log.e('$tag: Sync cancelled due to halt');
-        return EventSyncResult.halted();
+        return EventSyncResult.halted(batch.toList());
       }
     } catch (e) {
       Log.e('$tag: _syncEventsForABatch($logId) failed due to error: $e');
@@ -161,6 +185,18 @@ class WorkerService {
 
     // if retry is false, or we have reached max retry count, return back syncFailed state
     if (_hasHalted || retry == false || retryCount == config.syncMaxRetry) {
+      if (!_hasHalted && retry && retryCount == config.syncMaxRetry) {
+        PulseEventsSdk.reportWarning(
+          'pulse_batch_failed_after_retry',
+          '$tag: batch sync failed after max retry count',
+          {
+            'eventPublishEndpoint': eventPublishEndpoint,
+            'batchSize': batch.length,
+            'retryCount': retryCount,
+            'logId': logId,
+          },
+        );
+      }
       return EventSyncResult.failed(batch.toList());
     }
 
@@ -170,7 +206,7 @@ class WorkerService {
     await Future.delayed(config.syncRetryDelayDuration);
 
     if (_hasHalted) {
-      return EventSyncResult.halted();
+      return EventSyncResult.halted(batch.toList());
     }
 
     // otherwise, keep retrying

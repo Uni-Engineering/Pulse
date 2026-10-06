@@ -15,7 +15,6 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart' as dio;
-import 'package:pulse_events_sdk/pulse_events_sdk.dart';
 import 'package:pulse_events_sdk/src/constants/constants.dart';
 
 import '../../interfaces/event_context.dart';
@@ -50,6 +49,9 @@ class DioNetworkService implements DioNetworkServiceType {
               appType: appType,
             ),
           );
+
+  @override
+  bool get hasAuthToken => eventContext.appAuthToken != null;
 
   @override
   Future<dio.Response?> get(String endpoint) async {
@@ -158,7 +160,6 @@ class _Interceptor extends dio.Interceptor {
   @override
   void onRequest(dio.RequestOptions options, dio.RequestInterceptorHandler handler) {
     final userAgent = '$appType PulseEventsSdk/${Constants.sdkVersion}($_osType; deviceId=${eventContext.deviceId})';
-    final sdkConfig = getIt<PulseEventsSdkConfig>();
 
     options.headers.addAll({
       'Content-Type': 'application/json',
@@ -173,7 +174,6 @@ class _Interceptor extends dio.Interceptor {
     if (eventContext.networkHeaders != null) {
       options.headers.addAll(eventContext.networkHeaders!);
     }
-    sdkConfig.onNetworkIntercept?.call(options, handler);
 
     super.onRequest(options, handler);
   }

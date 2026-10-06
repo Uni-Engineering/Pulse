@@ -31,9 +31,9 @@ class EventSyncResult {
   int get failedNo => failed.length;
 
   bool get hasAtleastOneSucceeded => succeededNo != 0;
-  bool get hasAllSucceeded => failedNo == 0;
+  bool get hasAllSucceeded => state == EventSyncState.succeeded && failedNo == 0;
 
-  bool get isSuccess => failed.isEmpty;
+  bool get isSuccess => state == EventSyncState.succeeded && failed.isEmpty;
   bool get isHalted => state == EventSyncState.halted;
 
   factory EventSyncResult.success(List<EventDataModel> succeeded) {
@@ -44,27 +44,31 @@ class EventSyncResult {
     return EventSyncResult(failed: failed, state: EventSyncState.failed);
   }
 
-  factory EventSyncResult.halted() {
-    return EventSyncResult(state: EventSyncState.halted);
+  factory EventSyncResult.halted([List<EventDataModel> failed = const []]) {
+    return EventSyncResult(failed: failed, state: EventSyncState.halted);
   }
 
   static EventSyncResult merge(List<EventSyncResult> results) {
     final succeeded = <EventDataModel>[];
     final failed = <EventDataModel>[];
+    var hasHalted = false;
 
     for (final result in results) {
       succeeded.addAll(result.succeeded);
       failed.addAll(result.failed);
+      hasHalted = hasHalted || result.isHalted;
     }
 
     return EventSyncResult(
       succeeded: succeeded,
       failed: failed,
-      state: failed.isEmpty
-          ? EventSyncState.succeeded
-          : succeeded.isEmpty
-              ? EventSyncState.failed
-              : EventSyncState.partial,
+      state: hasHalted
+          ? EventSyncState.halted
+          : failed.isEmpty
+              ? EventSyncState.succeeded
+              : succeeded.isEmpty
+                  ? EventSyncState.failed
+                  : EventSyncState.partial,
     );
   }
 

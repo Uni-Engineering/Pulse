@@ -91,6 +91,8 @@ class DLQWorker {
     // init entity
     await databaseService.initEntity<EventDataModel>(entityId: entityId);
 
+    await _deleteAlreadySyncedEvents(entityId: entityId);
+
     // pick all events that are not sycned yet
     final notSycnedEvents =
         databaseService.getAll<EventDataModel>(entityId: entityId).where((e) => e.status != EventStatus.synced);
@@ -117,16 +119,6 @@ class DLQWorker {
 
     Log.i('$tag: _syncEventsForPriority(priority: $priority), syncStatus: $syncResult');
 
-    // if all events are synced successfully
-    if (syncResult.hasAllSucceeded) {
-      Log.i('$tag: Events in $entityId are successfully synced');
-      return SingularEventSyncResult(
-        priority: priority,
-        isSyncSuccessful: true,
-      );
-    }
-
-    // partial cleanup
     // remove the successfully synced events, and keep the failed ones - to be retried at a later point
     if (syncResult.hasAtleastOneSucceeded) {
       await databaseService.deleteAll<EventDataModel>(
@@ -137,10 +129,32 @@ class DLQWorker {
       await databaseService.flush<EventDataModel>(entityId: entityId);
     }
 
+    // if all events are synced successfully
+    if (syncResult.hasAllSucceeded) {
+      Log.i('$tag: Events in $entityId are successfully synced');
+      return SingularEventSyncResult(
+        priority: priority,
+        isSyncSuccessful: true,
+      );
+    }
+
     return SingularEventSyncResult(
       priority: priority,
       isSyncSuccessful: false,
     );
+  }
+
+  Future<void> _deleteAlreadySyncedEvents({required String entityId}) async {
+    final syncedEventIds = databaseService
+        .getAll<EventDataModel>(entityId: entityId)
+        .where((event) => event.status == EventStatus.synced)
+        .map((event) => event.eventId);
+
+    await databaseService.deleteAll<EventDataModel>(
+      entityId: entityId,
+      keys: syncedEventIds,
+    );
+    await databaseService.flush<EventDataModel>(entityId: entityId);
   }
 
   /// Updates the core db entity [Constants.coreDbEntityId] to reflect the synced changes,
