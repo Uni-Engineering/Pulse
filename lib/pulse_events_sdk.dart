@@ -16,6 +16,7 @@ library pulse_events_sdk;
 
 export 'src/core/pulse_events_sdk.dart';
 export 'src/interfaces/event_context.dart';
+export 'src/interfaces/warning_callback.dart';
 export 'src/config/pulse_events_sdk_config.dart';
 export 'src/exceptions/pulse_events_exceptions.dart';
 export 'src/exceptions/internal_exceptions.dart';

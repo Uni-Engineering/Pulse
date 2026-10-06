@@ -16,6 +16,7 @@ import 'package:pulse_events_sdk/src/config/pulse_events_sdk_config.dart';
 
 import '../interfaces/events_service.dart';
 import '../interfaces/event_context.dart';
+import '../interfaces/warning_callback.dart';
 import '../exceptions/pulse_events_exceptions.dart';
 import '../services/frequency_sync_event_service/frequency_sync_event_service.dart';
 import '../services/utils/event_validator.dart';
@@ -26,14 +27,27 @@ final getIt = GetIt.I;
 
 class PulseEventsSdk {
   static const String tag = 'PulseEventsSdk';
-  
+
   /// Callback for reporting critical errors to external monitoring systems (e.g., Sentry)
   static Function(String message, dynamic error, StackTrace? stackTrace)? onCriticalError;
-  
+
+  /// Callback for non-fatal SDK reliability warnings.
+  static PulseEventsWarningCallback? get onWarning => Log.onWarning;
+  static set onWarning(PulseEventsWarningCallback? callback) => Log.onWarning = callback;
+
   /// Reports critical errors to both internal logging and external monitoring
   static void reportCriticalError(String message, dynamic error, [StackTrace? stackTrace]) {
     Log.e(message, error, stackTrace);
     onCriticalError?.call(message, error, stackTrace ?? StackTrace.current);
+  }
+
+  /// Reports non-fatal SDK reliability warnings.
+  static void reportWarning(
+    String code,
+    String message, [
+    Map<String, dynamic>? details,
+  ]) {
+    Log.warning(code, message, details);
   }
 
   final EventContext _eventContext;
@@ -88,10 +102,11 @@ class PulseEventsSdk {
       // Prepare logging
       Log.debugMode = debugMode;
 
-      // Register configuration if not already registered
-      if (!getIt.isRegistered<PulseEventsSdkConfig>()) {
-        getIt.registerSingleton<PulseEventsSdkConfig>(config);
+      // Register latest configuration.
+      if (getIt.isRegistered<PulseEventsSdkConfig>()) {
+        await getIt.unregister<PulseEventsSdkConfig>();
       }
+      getIt.registerSingleton<PulseEventsSdkConfig>(config);
 
       // Initialize event service
       final success = await _eventService.init(
@@ -106,7 +121,14 @@ class PulseEventsSdk {
         _isInitialized = true;
         Log.i('$tag: SDK initialized successfully');
       } else {
-        reportCriticalError('$tag: SDK initialization failed', Exception('SDK initialization returned false'));
+        reportWarning(
+          'pulse_no_publish_endpoint',
+          '$tag: SDK initialization returned false',
+          {
+            'baseUrl': baseUrl,
+            'configUrlEndpoint': configUrlEndpoint,
+          },
+        );
       }
 
       return success;
