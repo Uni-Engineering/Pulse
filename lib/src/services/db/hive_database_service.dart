@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // ignore: implementation_imports
-import 'package:hive/src/hive_impl.dart';
+import 'package:hive_ce/src/hive_impl.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart' as path_provider;
 import 'dart:io';
@@ -91,6 +91,14 @@ class HiveDatabaseService implements IDatabaseService {
       Log.i('$tag: Successfully opened box for entity: $entityId');
     } catch (e) {
       Log.e('$tag: Failed to initialize entity $entityId: $e');
+      Log.warning(
+        'pulse_db_write_failed',
+        '$tag: failed to open Hive entity',
+        {
+          'entityId': entityId,
+          'error': e.toString(),
+        },
+      );
       throw DatabaseException('Failed to initialize entity: $entityId', originalError: e);
     }
   }
@@ -125,8 +133,23 @@ class HiveDatabaseService implements IDatabaseService {
       await hive.box<T>(entityId).flush();
       Log.i('$tag: Successfully flushed entity: $entityId');
     } catch (e) {
-      Log.e('$tag: Failed to flush entity $entityId: $e');
-      throw DatabaseException('Failed to flush entity: $entityId', originalError: e);
+      try {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        if (!hive.isBoxOpen(entityId)) await hive.openBox<T>(entityId);
+        await hive.box<T>(entityId).flush();
+      } catch (retryError) {
+        Log.e('$tag: Failed to flush entity $entityId: $retryError');
+        Log.warning(
+          'pulse_db_write_failed',
+          '$tag: failed to flush Hive entity',
+          {
+            'entityId': entityId,
+            'error': retryError.toString(),
+            'firstError': e.toString(),
+          },
+        );
+        throw DatabaseException('Failed to flush entity: $entityId', originalError: retryError);
+      }
     }
   }
 
@@ -158,16 +181,33 @@ class HiveDatabaseService implements IDatabaseService {
 
   @override
   Future<void> put<T extends DatabaseModel>({required String entityId, required String key, required T data}) async {
+    if (key.isEmpty) {
+      throw DatabaseException('Key cannot be empty');
+    }
+
     try {
       _validateEntityExists<T>(entityId);
-      if (key.isEmpty) {
-        throw DatabaseException('Key cannot be empty');
-      }
 
       await hive.box<T>(entityId).put(key, data);
     } catch (e) {
-      Log.e('$tag: Failed to put data for key $key in entity $entityId: $e');
-      throw DatabaseException('Failed to store data for key: $key', originalError: e);
+      try {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        if (!hive.isBoxOpen(entityId)) await hive.openBox<T>(entityId);
+        await hive.box<T>(entityId).put(key, data);
+      } catch (retryError) {
+        Log.e('$tag: Failed to put data for key $key in entity $entityId: $retryError');
+        Log.warning(
+          'pulse_db_write_failed',
+          '$tag: failed to store data in Hive entity',
+          {
+            'entityId': entityId,
+            'key': key,
+            'error': retryError.toString(),
+            'firstError': e.toString(),
+          },
+        );
+        throw DatabaseException('Failed to store data for key: $key', originalError: retryError);
+      }
     }
   }
 
@@ -182,8 +222,24 @@ class HiveDatabaseService implements IDatabaseService {
 
       await hive.box<T>(entityId).putAll(entries);
     } catch (e) {
-      Log.e('$tag: Failed to put all data in entity $entityId: $e');
-      throw DatabaseException('Failed to store batch data in entity: $entityId', originalError: e);
+      try {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        if (!hive.isBoxOpen(entityId)) await hive.openBox<T>(entityId);
+        await hive.box<T>(entityId).putAll(entries);
+      } catch (retryError) {
+        Log.e('$tag: Failed to put all data in entity $entityId: $retryError');
+        Log.warning(
+          'pulse_db_write_failed',
+          '$tag: failed to store batch data in Hive entity',
+          {
+            'entityId': entityId,
+            'entryCount': entries.length,
+            'error': retryError.toString(),
+            'firstError': e.toString(),
+          },
+        );
+        throw DatabaseException('Failed to store batch data in entity: $entityId', originalError: retryError);
+      }
     }
   }
 
