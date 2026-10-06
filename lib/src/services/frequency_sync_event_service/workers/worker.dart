@@ -74,6 +74,7 @@ class Worker {
   /// and sets up timers for batch processing
   Future<void> initialize() async {
     await databaseService.initEntity<EventDataModel>(entityId: _workerEntityId);
+    await _deleteAlreadySyncedEvents();
 
     if (!_ready.isCompleted) {
       _ready.complete();
@@ -81,10 +82,11 @@ class Worker {
 
     Log.i('$tag: entity id: $_workerEntityId is successfully initialized');
 
-    // RETRIES
-    Log.i('$tag: attempting first retry for failed events');
-    _syncToServer(whichEvents: EventStatus.failed); // do a one time retry
-    _registerWorkerRetryTimer(); // registers retry timer
+    Log.i('$tag: attempting startup sync for readyToSync and failed events');
+    unawaited(_syncToServer(whichEvents: EventStatus.readyToSync));
+    unawaited(_syncToServer(whichEvents: EventStatus.failed));
+    _registerWorkerRetryTimer();
+    unawaited(_onNewEventAdd());
   }
 
   /// This method tries to sync the events to server
@@ -94,6 +96,13 @@ class Worker {
   /// If sync succeeds, events are marked as [EventStatus.synced] or else marked as [EventStatus.failed]
   Future<void> _syncToServer({required EventStatus whichEvents}) async {
     if (_isWorkerPaused) return;
+
+    // without an auth token the publish call can never succeed - leave the
+    // events untouched so they are retried once the user logs in
+    if (!getIt.isRegistered<DioNetworkServiceType>() || !getIt<DioNetworkServiceType>().hasAuthToken) {
+      Log.i('$tag: skipping sync for $whichEvents - no auth token available');
+      return;
+    }
 
     // only [readyToSync] or [failed] events can be synced to server
     assert(whichEvents == EventStatus.readyToSync || whichEvents == EventStatus.failed);
@@ -160,39 +169,67 @@ class Worker {
   void _registerWorkerRetryTimer() {
     _workerRetryTimer?.cancel();
     final retryPeriod = getIt<PulseEventsSdkConfig>().workerRetryPeriod;
-    _workerRetryTimer = Timer.periodic(retryPeriod, (_) => _syncToServer(whichEvents: EventStatus.failed));
+    _workerRetryTimer = Timer.periodic(retryPeriod, (_) {
+      unawaited(_syncToServer(whichEvents: EventStatus.readyToSync));
+      unawaited(_syncToServer(whichEvents: EventStatus.failed));
+    });
+  }
+
+  /// Immediately attempts to sync every non-synced event.
+  /// Unlike [syncAllEvents] this is safe to call on an active worker.
+  Future<void> flushNow() async {
+    if (_isWorkerPaused) return;
+
+    Log.i('$tag: flushNow() invoked');
+
+    await _prepareAndTrySync();
+    await _syncToServer(whichEvents: EventStatus.failed);
   }
 
   /// Immediately saves the event in the local db, a batch try would happen later to sync the events
-  void trackEvent({
+  Future<void> trackEvent({
     required String eventName,
     required Map<String, dynamic> payload,
     String? userId,
   }) async {
-    // Wait until entity is initialized before writing
-    await _awaitReady();
-    final eventId = Utils.generateEventId();
+    try {
+      // Wait until entity is initialized before writing
+      await _awaitReady();
+      final eventId = Utils.generateEventId();
 
-    Log.i('$tag: trackEvent(eventName: $eventName) invoked, recording event with eventId: $eventId');
+      Log.i('$tag: trackEvent(eventName: $eventName) invoked, recording event with eventId: $eventId');
 
-    // store the event to db first
-    await databaseService.put<EventDataModel>(
-      entityId: _workerEntityId,
-      key: eventId,
-      data: EventDataModel(
-        eventId: eventId,
-        eventName: eventName,
-        payload: Utils.prepareEventPayloadFrom(
-          payload: payload,
-          eventPriority: processingPolicy.priority,
+      // store the event to db first
+      await databaseService.put<EventDataModel>(
+        entityId: _workerEntityId,
+        key: eventId,
+        data: EventDataModel(
+          eventId: eventId,
+          eventName: eventName,
+          payload: Utils.prepareEventPayloadFrom(
+            payload: payload,
+            eventPriority: processingPolicy.priority,
+          ),
         ),
-      ),
-    );
+      );
 
-    _flushChanges();
+      _flushChanges();
 
-    // notify an event addition
-    _onNewEventAdd();
+      // notify an event addition
+      unawaited(_onNewEventAdd());
+    } catch (e, stackTrace) {
+      Log.e('$tag: failed to record event "$eventName": $e');
+      PulseEventsSdk.reportWarning(
+        'pulse_db_write_failed',
+        '$tag: failed to persist event locally',
+        {
+          'eventName': eventName,
+          'priority': processingPolicy.priority,
+          'error': e.toString(),
+          'stackTrace': stackTrace.toString(),
+        },
+      );
+    }
   }
 
   Future<void> _onNewEventAdd() async {
@@ -242,10 +279,14 @@ class Worker {
 
     Log.i('$tag: syncAllEvents() invoked');
 
+    await _deleteAlreadySyncedEvents();
+
     // pick all events for syncing
     final eventsToSync = queryEventsFromDB(_workerEntityId, filter: (e) => e.status != EventStatus.synced);
 
-    if (eventsToSync.isEmpty) return Log.i('$tag: syncAllEvents() found no events to sync');
+    if (eventsToSync.isEmpty) {
+      return Log.i('$tag: syncAllEvents() found no events to sync');
+    }
 
     Log.i('$tag: syncAllEvents() found ${eventsToSync.length} events to sync');
 
@@ -263,6 +304,15 @@ class Worker {
       entityId: _workerEntityId,
       keys: syncStatus.succeeded.map((e) => e.eventId),
     );
+
+    if (syncStatus.failed.isNotEmpty) {
+      final failedEvents = <String, EventDataModel>{};
+      for (final event in syncStatus.failed) {
+        event.status = EventStatus.failed;
+        failedEvents[event.eventId] = event;
+      }
+      await databaseService.putAll<EventDataModel>(entityId: _workerEntityId, entries: failedEvents);
+    }
 
     return databaseService.flush<EventDataModel>(entityId: _workerEntityId);
   }
@@ -333,14 +383,30 @@ class Worker {
   void resumeSync() {
     Log.i('$tag: worker is resumed');
 
+    // mark the worker as resumed before invoking any sync triggers
+    _isWorkerPaused = false;
+
     // resumes retry timer
     _registerWorkerRetryTimer();
 
-    // simulate an event add - to get the ball rolling
-    _onNewEventAdd();
+    unawaited(_syncToServer(whichEvents: EventStatus.readyToSync));
+    unawaited(_syncToServer(whichEvents: EventStatus.failed));
 
-    // mark the worker as resumed
-    _isWorkerPaused = false;
+    // simulate an event add - to get the ball rolling
+    unawaited(_onNewEventAdd());
+  }
+
+  Future<void> _deleteAlreadySyncedEvents() async {
+    final syncedEventIds = queryEventsFromDB(
+      _workerEntityId,
+      filter: (event) => event.status == EventStatus.synced,
+    ).map((event) => event.eventId);
+
+    await databaseService.deleteAll<EventDataModel>(
+      entityId: _workerEntityId,
+      keys: syncedEventIds,
+    );
+    await databaseService.flush<EventDataModel>(entityId: _workerEntityId);
   }
 
   Iterable<EventDataModel> queryEventsFromDB(String entityId, {bool Function(EventDataModel)? filter}) {
@@ -355,7 +421,21 @@ class Worker {
       Constants.dbFlushDuration,
       () {
         Log.i('$tag: db flush() invoked');
-        databaseService.flush<EventDataModel>(entityId: _workerEntityId);
+        unawaited(() async {
+          try {
+            await databaseService.flush<EventDataModel>(entityId: _workerEntityId);
+          } catch (e, stackTrace) {
+            PulseEventsSdk.reportWarning(
+              'pulse_db_write_failed',
+              '$tag: failed to flush event DB changes',
+              {
+                'priority': processingPolicy.priority,
+                'error': e.toString(),
+                'stackTrace': stackTrace.toString(),
+              },
+            );
+          }
+        }());
       },
     );
   }

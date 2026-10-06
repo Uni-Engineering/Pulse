@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 class PulseEventsSdkConfig {
@@ -26,9 +25,10 @@ class PulseEventsSdkConfig {
 
   final Duration syncRetryDelayDuration;
   final int syncMaxRetry = 5;
+  final int configFetchMaxRetries;
+  final Duration configFetchRetryDelay;
   final int maxDbSizeInMb;
   final bool shouldUseLocalConfigAsFallback;
-  final void Function(RequestOptions options, RequestInterceptorHandler handler)? onNetworkIntercept;
 
   PulseEventsSdkConfig({
     this.fallbackEventPublishEndpoint,
@@ -37,9 +37,12 @@ class PulseEventsSdkConfig {
     this.eventSyncNetworkTimeout = const Duration(seconds: 10),
     this.largestBatchSize = 100,
     this.workerRetryPeriod = const Duration(seconds: 10),
-    this.syncRetryDelayDuration = !kReleaseMode ? const Duration(seconds: 5) : const Duration(seconds: 10),
+    this.syncRetryDelayDuration = !kReleaseMode
+        ? const Duration(seconds: 5)
+        : const Duration(seconds: 10),
+    this.configFetchMaxRetries = 3,
+    this.configFetchRetryDelay = const Duration(seconds: 2),
     this.maxDbSizeInMb = 10,
     this.shouldUseLocalConfigAsFallback = true,
-    this.onNetworkIntercept,
   });
 }
