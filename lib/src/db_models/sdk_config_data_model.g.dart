@@ -8,7 +8,7 @@ part of 'sdk_config_data_model.dart';
 
 class SdkConfigDataModelAdapter extends TypeAdapter<SdkConfigDataModel> {
   @override
-  final int typeId = 3;
+  final typeId = 3;
 
   @override
   SdkConfigDataModel read(BinaryReader reader) {
