@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:hive/hive.dart';
+import 'package:hive_ce/hive_ce.dart';
 
 import 'data_model.dart';
 

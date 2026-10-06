@@ -8,7 +8,7 @@ part of 'event_data_model.dart';
 
 class EventDataModelAdapter extends TypeAdapter<EventDataModel> {
   @override
-  final int typeId = 2;
+  final typeId = 2;
 
   @override
   EventDataModel read(BinaryReader reader) {
@@ -20,7 +20,8 @@ class EventDataModelAdapter extends TypeAdapter<EventDataModel> {
       eventId: fields[0] as String,
       eventName: fields[1] as String,
       payload: (fields[2] as Map).cast<String, dynamic>(),
-      status: fields[3] as EventStatus,
+      status:
+          fields[3] == null ? EventStatus.pending : fields[3] as EventStatus,
     );
   }
 
@@ -51,7 +52,7 @@ class EventDataModelAdapter extends TypeAdapter<EventDataModel> {
 
 class EventStatusAdapter extends TypeAdapter<EventStatus> {
   @override
-  final int typeId = 1;
+  final typeId = 1;
 
   @override
   EventStatus read(BinaryReader reader) {
@@ -74,16 +75,12 @@ class EventStatusAdapter extends TypeAdapter<EventStatus> {
     switch (obj) {
       case EventStatus.pending:
         writer.writeByte(0);
-        break;
       case EventStatus.readyToSync:
         writer.writeByte(1);
-        break;
       case EventStatus.synced:
         writer.writeByte(2);
-        break;
       case EventStatus.failed:
         writer.writeByte(3);
-        break;
     }
   }
 
