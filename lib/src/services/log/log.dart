@@ -18,6 +18,7 @@ import 'package:pulse_events_sdk/pulse_events_sdk.dart';
 
 class Log {
   static bool _ignoreLogging = true;
+  static PulseEventsWarningCallback? onWarning;
 
   static int _index = 1;
   static get _sequenceNumber {
@@ -59,5 +60,28 @@ class Log {
       name: getIt<PulseEventsSdkConfig>().logSourceName,
       time: time,
     );
+  }
+
+  static void warning(
+    String code,
+    String message, [
+    Map<String, dynamic>? details,
+  ]) {
+    if (!_ignoreLogging) {
+      final time = DateTime.now();
+      final sn = _sequenceNumber;
+      dev.log(
+        _formatMessage('warning[$code]: $message ${details ?? const <String, dynamic>{}}', time, sn),
+        sequenceNumber: sn,
+        name: 'PulseSDK',
+        time: time,
+      );
+    }
+
+    try {
+      onWarning?.call(code, message, details);
+    } catch (_) {
+      // Warning callbacks must never affect event capture.
+    }
   }
 }
