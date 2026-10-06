@@ -13,15 +13,16 @@ class EventManager with WidgetsBindingObserver {
     required this.eventContext,
     required this.debugMode,
   }) {
-    if (!getIt.isRegistered<DioNetworkServiceType>()) {
-      getIt.registerSingleton<DioNetworkServiceType>(
-        DioNetworkService(
-          appType: appId,
-          baseUrl: baseUrl,
-          eventContext: eventContext,
-        ),
-      );
+    if (getIt.isRegistered<DioNetworkServiceType>()) {
+      getIt.unregister<DioNetworkServiceType>();
     }
+    getIt.registerSingleton<DioNetworkServiceType>(
+      DioNetworkService(
+        appType: appId,
+        baseUrl: baseUrl,
+        eventContext: eventContext,
+      ),
+    );
     if (!getIt.isRegistered<IDatabaseService>()) {
       getIt.registerSingleton<IDatabaseService>(HiveDatabaseService(databaseId: appId));
     }
@@ -65,6 +66,8 @@ class EventManager with WidgetsBindingObserver {
           )
         : null;
 
+    var usingFallbackConfig = false;
+
     // if the config fetch was successful add the needed worker threads as per the config
     if (eventsProcessingPolicy != null) {
       for (final priorityConfig in eventsProcessingPolicy.priorities) {
@@ -96,18 +99,49 @@ class EventManager with WidgetsBindingObserver {
 
       await getIt<IDatabaseService>().flush<SdkConfigDataModel>(entityId: Constants.coreDbEntityId);
     } else {
-      if (localEventsProcessingPolicy == null) {
+      if (localEventsProcessingPolicy == null && sdkConfig.fallbackEventPublishEndpoint != null) {
+        usingFallbackConfig = true;
+        PulseEventsSdk.reportWarning(
+          'pulse_using_fallback_config',
+          '$tag: using fallback event publish endpoint because remote and local config are unavailable',
+          {
+            'fallbackEventPublishEndpoint': sdkConfig.fallbackEventPublishEndpoint,
+          },
+        );
+        await getIt<IDatabaseService>().put<SdkConfigDataModel>(
+          entityId: Constants.coreDbEntityId,
+          key: Constants.coreDbEntitySdkConfigKey,
+          data: SdkConfigDataModel(
+            eventPublishEndpoint: sdkConfig.fallbackEventPublishEndpoint!,
+            priorities: [Utils.defaultEventPublishPolicy.priority],
+            isEnabled: true,
+          ),
+        );
+        await getIt<IDatabaseService>().flush<SdkConfigDataModel>(entityId: Constants.coreDbEntityId);
+      } else if (localEventsProcessingPolicy == null) {
         Log.i(
-          '$tag: init() config fetch failed & no local config found, will default back to hardcoded event publish endpoint: ${sdkConfig.fallbackEventPublishEndpoint}',
+          '$tag: init() config fetch failed & no local config found, no fallback event publish endpoint configured',
         );
       }
     }
 
     // if sdk is not enabled for this user, do not initialize any services
     // sdk is always enabled if run in debugMode
-    isEnabled = eventsProcessingPolicy?.isEnabled ?? localEventsProcessingPolicy?.isEnabled ?? false;
+    isEnabled = eventsProcessingPolicy?.isEnabled ?? localEventsProcessingPolicy?.isEnabled ?? usingFallbackConfig;
 
     if (!debugMode && !isEnabled) {
+      if (eventsProcessingPolicy == null &&
+          localEventsProcessingPolicy == null &&
+          sdkConfig.fallbackEventPublishEndpoint == null) {
+        PulseEventsSdk.reportWarning(
+          'pulse_no_publish_endpoint',
+          '$tag: SDK disabled because no remote, local, or fallback event config is available',
+          {
+            'hasRemoteConfig': false,
+            'hasLocalConfig': false,
+          },
+        );
+      }
       Log.i('Sdk is disabled - debugMode: $debugMode, isEnabled: $isEnabled');
       return;
     }
@@ -118,7 +152,18 @@ class EventManager with WidgetsBindingObserver {
         localEventsProcessingPolicy?.eventPublishEndpoint ??
         sdkConfig.fallbackEventPublishEndpoint;
 
-    if (_eventPublishEndpoint == null) return;
+    if (_eventPublishEndpoint == null) {
+      PulseEventsSdk.reportWarning(
+        'pulse_no_publish_endpoint',
+        '$tag: SDK initialized without an event publish endpoint',
+        {
+          'hasRemoteConfig': eventsProcessingPolicy != null,
+          'hasLocalConfig': localEventsProcessingPolicy != null,
+          'isEnabled': isEnabled,
+        },
+      );
+      return;
+    }
 
     // init background worker
     backgroundWorker = BackgroundWorker(
@@ -184,7 +229,22 @@ class EventManager with WidgetsBindingObserver {
 
     /// check if current priority exists in [_workers] list
     final key = _workers.containsKey(priority) ? priority : Utils.defaultEventPublishPolicy.priority;
-    _workers[key]!.trackEvent(eventName: eventName, payload: payload, userId: _userId);
+    final worker = _workers[key];
+    if (worker == null) {
+      PulseEventsSdk.reportWarning(
+        'pulse_missing_worker',
+        '$tag: no worker found for event priority',
+        {
+          'eventName': eventName,
+          'requestedPriority': priority,
+          'selectedPriority': key,
+          'availablePriorities': _workers.keys.toList(),
+        },
+      );
+      return;
+    }
+
+    unawaited(worker.trackEvent(eventName: eventName, payload: payload, userId: _userId));
   }
 
   set userId(String userId) {
@@ -202,7 +262,9 @@ class EventManager with WidgetsBindingObserver {
     eventContext = newEventContext;
     isEnabled = true;
 
-    getIt.unregister<DioNetworkServiceType>();
+    if (getIt.isRegistered<DioNetworkServiceType>()) {
+      getIt.unregister<DioNetworkServiceType>();
+    }
 
     getIt.registerSingleton<DioNetworkServiceType>(
       DioNetworkService(
@@ -216,25 +278,53 @@ class EventManager with WidgetsBindingObserver {
       worker.workerService.restart();
     });
 
+    // an auth token just became available (eg. user logged in) - flush the
+    // backlog accumulated while sync was not possible
+    if (newEventContext.appAuthToken != null) {
+      for (final worker in _workers.values) {
+        unawaited(worker.flushNow());
+      }
+    }
+
     backgroundWorker?.registerTask(eventContext: eventContext);
   }
 
   /// fetch events sdk config
   Future<EventsSdkProcessingPolicy?> _fetchEventsProcessingPolicy(String configUrl) async {
-    try {
-      final response = await getIt<DioNetworkServiceType>().get(configUrl);
-      if (response?.statusCode == HttpStatus.ok) return EventsSdkProcessingPolicy.fromJson(response.dataMap);
-    } catch (e) {
-      Log.e('$tag: error fetching config: $e');
+    final sdkConfig = getIt<PulseEventsSdkConfig>();
+    final maxAttempts = sdkConfig.configFetchMaxRetries < 1 ? 1 : sdkConfig.configFetchMaxRetries;
+    Object? lastError;
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final response = await getIt<DioNetworkServiceType>().get(configUrl);
+        if (response?.statusCode == HttpStatus.ok) return EventsSdkProcessingPolicy.fromJson(response.dataMap);
+        lastError = 'statusCode=${response?.statusCode}';
+      } catch (e) {
+        lastError = e;
+        Log.e('$tag: error fetching config: $e');
+      }
+
+      if (attempt < maxAttempts) {
+        await Future.delayed(sdkConfig.configFetchRetryDelay);
+      }
     }
+
+    PulseEventsSdk.reportWarning(
+      'pulse_config_fetch_failed',
+      '$tag: failed to fetch events SDK config after retries',
+      {
+        'configUrl': configUrl,
+        'attempts': maxAttempts,
+        'lastError': lastError?.toString(),
+      },
+    );
 
     return null;
   }
 
   Future<void> _pauseAllWorkers() async {
-    _workers.forEach((priority, worker) async {
-      await worker.pauseSync();
-    });
+    await Future.wait(_workers.values.map((worker) => worker.pauseSync()));
   }
 
   Future<void> _pauseWorkerAndInvokeSyncAll(Worker worker) async {
