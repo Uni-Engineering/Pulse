@@ -18,7 +18,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  pulse_plus_events_sdk: ^1.2.0
+  pulse_plus_events_sdk: ^1.2.1
 ```
 
 Then run:
@@ -70,6 +70,9 @@ await sdk.init(
     largestBatchSize: 50,
     syncRetryDelayDuration: const Duration(seconds: 10),
     maxDbSizeInMb: 5,
+    onNetworkIntercept: (options, handler) {
+      options.headers['X-App-Version'] = '1.0.0';
+    },
   ),
   debugMode: true, // Set to false in production
 );
@@ -129,6 +132,9 @@ The `PulseEventsSdkConfig` class allows you to customize the SDK behavior:
 | `shouldUseLocalConfigAsFallback` | Use local config if remote fails | true |
 | `configFetchMaxRetries` | Maximum retries for fetching remote config | 3 |
 | `configFetchRetryDelay` | Delay between config fetch retries | 2 seconds |
+| `onNetworkIntercept` | Modify outgoing requests before they are sent (e.g. add headers) | null |
+
+The network interceptor runs for requests made in the main isolate after the SDK adds its default headers. It is not passed to the background worker isolate. If you only need to modify the request, update `options` as shown above; the SDK forwards the request automatically.
 
 ## Event Priorities
 
