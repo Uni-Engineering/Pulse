@@ -1,6 +1,6 @@
 name: pulse_plus_events_sdk
 description: A Flutter SDK for tracking and managing events in mobile applications
-version: 1.2.0
+version: 1.2.1
 homepage: https://github.com/Uni-Engineering/Pulse
 repository: https://github.com/Uni-Engineering/Pulse
 issue_tracker: https://github.com/Uni-Engineering/Pulse/issues
