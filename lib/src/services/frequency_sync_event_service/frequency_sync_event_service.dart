@@ -16,8 +16,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
-import 'package:pulse_events_sdk/pulse_events_sdk.dart';
-import 'package:pulse_events_sdk/src/constants/constants.dart';
+import 'package:uni_pulse_events_sdk/uni_pulse_events_sdk.dart';
+import 'package:uni_pulse_events_sdk/src/constants/constants.dart';
 
 import '../../db_models/sdk_config_data_model.dart';
 import '../../interfaces/events_service.dart';

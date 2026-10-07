@@ -15,10 +15,9 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart' as dio;
-import 'package:pulse_events_sdk/src/constants/constants.dart';
+import 'package:uni_pulse_events_sdk/uni_pulse_events_sdk.dart';
+import 'package:uni_pulse_events_sdk/src/constants/constants.dart';
 
-import '../../interfaces/event_context.dart';
-import '../../exceptions/pulse_events_exceptions.dart';
 import '../interfaces/network_service.dart';
 import '../log/log.dart';
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:pulse_events_sdk/src/config/pulse_events_sdk_config.dart';
+import 'package:uni_pulse_events_sdk/src/config/pulse_events_sdk_config.dart';
 
 import '../interfaces/events_service.dart';
 import '../interfaces/event_context.dart';

@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import 'dart:async';
-import 'package:pulse_events_sdk/pulse_events_sdk.dart';
-import 'package:pulse_events_sdk/src/constants/constants.dart';
-import 'package:pulse_events_sdk/src/services/interfaces/database_service.dart';
-import 'package:pulse_events_sdk/src/services/network/dio_network_service.dart';
+import 'package:uni_pulse_events_sdk/uni_pulse_events_sdk.dart';
+import 'package:uni_pulse_events_sdk/src/constants/constants.dart';
+import 'package:uni_pulse_events_sdk/src/services/interfaces/database_service.dart';
+import 'package:uni_pulse_events_sdk/src/services/network/dio_network_service.dart';
 
 import '../../../db_models/event_data_model.dart';
 import '../../log/log.dart';
