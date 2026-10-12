@@ -18,7 +18,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  pulse_plus_events_sdk: ^1.1.0
+  pulse_plus_events_sdk: ^1.2.0
 ```
 
 Then run:
@@ -127,6 +127,8 @@ The `PulseEventsSdkConfig` class allows you to customize the SDK behavior:
 | `syncRetryDelayDuration` | Delay between sync retries | 10 seconds (5 in debug) |
 | `maxDbSizeInMb` | Maximum size of local database | 10 MB |
 | `shouldUseLocalConfigAsFallback` | Use local config if remote fails | true |
+| `configFetchMaxRetries` | Maximum retries for fetching remote config | 3 |
+| `configFetchRetryDelay` | Delay between config fetch retries | 2 seconds |
 
 ## Event Priorities
 
