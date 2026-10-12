@@ -16,7 +16,7 @@ import 'package:flutter/foundation.dart';
 
 class Constants {
   Constants._();
-  static const sdkVersion = '1.0.0';
+  static const sdkVersion = '1.2.0';
   static const coreDbEntityId = "core-db";
   static const coreDbEntitySdkConfigKey = "sdkConfig";
   static const dbFlushDuration = Duration(seconds: 2);
