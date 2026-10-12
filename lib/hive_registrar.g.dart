@@ -3,8 +3,8 @@
 // Check in to version control
 
 import 'package:hive_ce/hive_ce.dart';
-import 'package:pulse_events_sdk/src/db_models/event_data_model.dart';
-import 'package:pulse_events_sdk/src/db_models/sdk_config_data_model.dart';
+import 'package:pulse_plus_events_sdk/src/db_models/event_data_model.dart';
+import 'package:pulse_plus_events_sdk/src/db_models/sdk_config_data_model.dart';
 
 extension HiveRegistrar on HiveInterface {
   void registerAdapters() {

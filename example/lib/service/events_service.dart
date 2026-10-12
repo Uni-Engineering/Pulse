@@ -1,6 +1,6 @@
 import 'dart:developer';
 
-import 'package:pulse_events_sdk/pulse_events_sdk.dart';
+import 'package:pulse_plus_events_sdk/pulse_plus_events_sdk.dart';
 
 import 'auth_service.dart';
 import 'session_service.dart';
