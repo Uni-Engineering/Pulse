@@ -1,16 +1,16 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pulse_events_sdk/pulse_events_sdk.dart';
-import 'package:pulse_events_sdk/src/db_models/data_model.dart';
-import 'package:pulse_events_sdk/src/db_models/event_data_model.dart';
-import 'package:pulse_events_sdk/src/services/frequency_sync_event_service/models/event_sync_result.dart';
-import 'package:pulse_events_sdk/src/services/frequency_sync_event_service/models/events_priority_config.dart';
-import 'package:pulse_events_sdk/src/services/frequency_sync_event_service/workers/single_task_worker.dart';
-import 'package:pulse_events_sdk/src/services/frequency_sync_event_service/workers/worker.dart';
-import 'package:pulse_events_sdk/src/services/interfaces/database_service.dart';
-import 'package:pulse_events_sdk/src/services/interfaces/network_service.dart';
-import 'package:pulse_events_sdk/src/services/network/dio_network_service.dart';
-import 'package:pulse_events_sdk/src/services/utils/utils.dart';
+import 'package:pulse_plus_events_sdk/pulse_plus_events_sdk.dart';
+import 'package:pulse_plus_events_sdk/src/db_models/data_model.dart';
+import 'package:pulse_plus_events_sdk/src/db_models/event_data_model.dart';
+import 'package:pulse_plus_events_sdk/src/services/frequency_sync_event_service/models/event_sync_result.dart';
+import 'package:pulse_plus_events_sdk/src/services/frequency_sync_event_service/models/events_priority_config.dart';
+import 'package:pulse_plus_events_sdk/src/services/frequency_sync_event_service/workers/single_task_worker.dart';
+import 'package:pulse_plus_events_sdk/src/services/frequency_sync_event_service/workers/worker.dart';
+import 'package:pulse_plus_events_sdk/src/services/interfaces/database_service.dart';
+import 'package:pulse_plus_events_sdk/src/services/interfaces/network_service.dart';
+import 'package:pulse_plus_events_sdk/src/services/network/dio_network_service.dart';
+import 'package:pulse_plus_events_sdk/src/services/utils/utils.dart';
 
 void main() {
   tearDown(() async {

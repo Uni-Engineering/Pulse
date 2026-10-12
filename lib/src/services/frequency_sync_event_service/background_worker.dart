@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:pulse_events_sdk/pulse_events_sdk.dart';
+import 'package:pulse_plus_events_sdk/pulse_plus_events_sdk.dart';
 import 'package:flutter/foundation.dart';
-import 'package:pulse_events_sdk/src/services/db/hive_database_service.dart';
+import 'package:pulse_plus_events_sdk/src/services/db/hive_database_service.dart';
 import 'package:workmanager/workmanager.dart';
 
 import '../../constants/constants.dart';

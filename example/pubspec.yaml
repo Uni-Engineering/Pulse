@@ -11,7 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
-  pulse_events_sdk:
+  pulse_plus_events_sdk:
     path: ../
   gap: ^3.0.1
   http: ^1.2.2
