@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-10-12
+
+### Added
+- Added non-fatal SDK warning callbacks and refreshed configuration on initialization.
+- Added configurable retries for remote configuration fetches with a fallback publish endpoint.
+
+### Changed
+- Migrated local persistence to Hive CE and added retries for failed database writes.
+- Improved event sync recovery, including preservation of halted batches.
+- Renamed the package to `pulse_plus_events_sdk` (update package imports and dependencies).
+
 ## [1.1.0] - 2026-03-13
 
 ### Added
