@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-library pulse_events_sdk;
+library pulse_plus_events_sdk;
 
 export 'src/core/pulse_events_sdk.dart';
 export 'src/interfaces/event_context.dart';

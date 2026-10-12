@@ -18,7 +18,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  pulse_events_sdk: ^1.0.0
+  pulse_plus_events_sdk: ^1.1.0
 ```
 
 Then run:
@@ -42,7 +42,7 @@ No extra setup is needed for Android.
 ### Initialization
 
 ```dart
-import 'package:pulse_events_sdk/pulse_events_sdk.dart';
+import 'package:pulse_plus_events_sdk/pulse_plus_events_sdk.dart';
 
 // Create an event context
 final eventContext = EventContext(
